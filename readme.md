@@ -1,4 +1,4 @@
-# Question 1 Report
+# RealLife Simulation using Threads and locks
 ## Assumptions
 - I assumed that the maximum number of studnets is 1000
 - The student who arrives first will get the washing machine first and if two students are arriving at the same time then we will give the washing machine to the student who had lower index.
