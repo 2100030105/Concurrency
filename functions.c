@@ -1,307 +1,105 @@
 #include "headers.h"
 
-
-
-
-void *time_count()
+//check 41 line 
+struct timespec * SetTime(int time)
 {
-    while(1)
-    {
-        if(time(NULL)-start_time > current_time)
-        {
-            current_time++;
-        }
-    }
+     struct timespec * t = (struct timespec *) malloc(sizeof(struct timespec *));
+     clock_gettime(CLOCK_REALTIME,t);
+     t->tv_sec+=time;
+     t->tv_nsec+=9000000;
+    
+     return t;
 }
 
 
-
-void *pizzafunc(void *arg)
+void * Schedule_WashingMachine(void* arg)
 {
+    student *st = (student *)arg;
 
-    Order *o = (Order *)arg;
-    //The main goal of this function is to make this order acceptible by any chef
-    //if this order can't be accepted by any chef just inform it
-
-    int assigned = -1;
-    int ing = 1;
-
-    for(int i = 1 ; i <= pizza[o->pizzatype].num_limitedingredients ;i++)
-            {
-               pthread_mutex_lock(&ingredients[pizza[o->pizzatype].ID[i]]);
-               if(amount_ingredients[pizza[o->pizzatype].ID[i]]  == 0)
-               {
-                  ing = -1;
-               }
-               pthread_mutex_unlock(&ingredients[pizza[o->pizzatype].ID[i]]);
-
-            }
-
-    if(ing == -1)
-    {
-        return NULL;
-    }       
-
-
-   while(1)
-   {
-
-    for(int j = 1 ; j <= number_chefs ; j++)
-    {
-        pthread_mutex_lock(&chef[j].chefmutex);
-        if(chef[j].assignedto == -1 && chef[j].exittime > pizza[o->pizzatype].preparationtime + 3 + current_time)
-        {
-            chef[j].assignedto = o->id;
-            chef[j].pizzatype = o->pizzatype;
-            chef[j].pizzanumber = o->number;
-            assigned = j;
-        }
-
-        pthread_mutex_unlock(&chef[j].chefmutex);
-
-        if(assigned != -1)
-        {
-            break;
-        }
-    }
-
-    if(assigned != -1)
-    {
-        break;
-    }
-
-   }
-
+    int ok;
+    int c = st->arrival_time;
+    sleep(c);
+    white();
+    printf("%d : student %d arrives\n",c,st->id+1);
+    reset();
+    struct timespec *c1 = SetTime(st->patience_time);
    
+    ok = sem_timedwait(&wash_machines,c1);
 
-    if(assigned != -1)
+    if(ok == 0)
     {
-        printf("pizza %d in order %d assigned to chef %d\n",o->number,o->id,assigned);
-        sem_post(&chef[assigned].cheflock);
-    }
+        //NOW this student is so lucky as he got the washing machine
+         struct timespec *c2 = (struct timespec *) malloc(sizeof(struct timespec *));
+         int c_time;
+         clock_gettime(CLOCK_REALTIME,c2);
+         c_time = c2->tv_sec-h1->tv_sec;
+         pthread_mutex_lock(&secondslock);
+         totalsec_wasted+=((int)(time(NULL)-start_time))-st->arrival_time;
+         pthread_mutex_unlock(&secondslock);
+         green();
+         printf("%d : student %d starts washing\n",(int)(time(NULL)-start_time),st->id+1);
+         reset();
+
+         sleep(st->washing_time);
+
+         
+         yellow();
+         printf("%d : student %d leaves after washing\n",(int)(time(NULL)-start_time),st->id+1);
+         reset();
+
+         sem_post(&wash_machines);
 
 
-    if(assigned != -1)
-    {
-        sem_wait(&chef[assigned].signallock);
-    }
+        //Now student completes his washing  
 
-    return NULL;
-
-
-
-        
-}
-
-
-
-
-
-void *customer_func(void *arg)
-{
-    Customer *cus =(Customer *)arg;
-
-    sleep(cus->arrivaltime);
-    printf("Customer %d arrives at time %d\n",cus->id,cus->arrivaltime);
-    printf("order %d placed by customer %d has pizzas",cus->id,cus->id);
-    for(int j = 1 ;j <= cus->number_pizzas ; j++)
-    {
-      if(j == 1)
-      printf("{%d",cus->pizzas[j]);
-      else
-      printf(",%d",cus->pizzas[j]);
-    }
-
-    printf("}\n");
-    printf("order %d placed by customer %d awaits processing\n",cus->id,cus->id);
-
-    pthread_t pizza_thread[cus->number_pizzas];
-
-    Order o;
-
-
-
-
-
-    for(int j =0 ; j < cus->number_pizzas ; j++)
-    {
-          //create thread for each pizza 
-          //Each pizza finds its own way of searching for a thread
-
-          o.id = cus->id;
-          o.number = j+1;
-          o.pizzatype = cus->pizzas[j+1];
-
-          pthread_create(&pizza_thread[j],NULL,pizzafunc,&o);
-
-    }
-
-   
-    for(int j = 0 ; j < cus->number_pizzas ; j++)
-    {
-        pthread_join(pizza_thread[j],NULL);
-    }
-
-    sem_wait(&cus->customerlock);
-
-    if(cus->numpizzas_completed == cus->number_pizzas)
-    {
-        printf("Order %d placed by customer %d has been processed\n",cus->id,cus->id);
     }
     else
     {
-        if(cus->numpizzas_completed == 0)
+        if(ok == -1 && errno == ETIMEDOUT)
         {
-            printf("order %d placed by customer %d completely rejected\n",cus->id,cus->id);
-            usleep(1);
-            printf("Customer %d is rejected\n",cus->id);
-
-            return NULL;
+           pthread_mutex_lock(&secondslock);
+           totalsec_wasted+=(c1->tv_sec-h1->tv_sec-st->arrival_time);
+           pthread_mutex_unlock(&secondslock);
+           red();
+           printf("%ld : student %d leaves without washing\n",c1->tv_sec-h1->tv_sec,st->id+1);
+           reset();
+           sem_wait(&mu_studentsleft);
+           students_left++;
+           sem_post(&mu_studentsleft); 
         }
         else
         {
-            printf("Order %d placed by customer %d partially processed and remaining couldn't be\n",cus->id,cus->id);
+            printf("something went wrong in sem_timedwait");
         }
     }
 
-
-    sem_post(&cus->customerlock);
-
-    printf("Customer %d exits the drive thru zone\n",cus->id);
-
-
-
-
-
-
-
-
-
-
-     
 }
 
-void *chef_func(void *arg)
+
+void yellow()
 {
-
-    Chef *cf =(Chef *)arg;
-
-    sleep(cf->arrivaltime);
-
-   
-     
+    printf("\033[1;33m");
+}
 
 
-    printf("Chef %d arrives at time %d\n",cf->id,cf->arrivaltime);
+void green()
+{
+    printf("\033[0;32m");
+}
 
 
-    pthread_mutex_lock(&cf->chefmutex);
-    cf->assignedto = -1;
-    pthread_mutex_unlock(&cf->chefmutex);
-    struct timespec exit;
-    clock_gettime(CLOCK_REALTIME,&exit);
-    exit.tv_sec+=cf->exittime;
-    exit.tv_nsec+=9000000;
-    int ans = 1;
-    while(1)
-    {
-         ans =  sem_timedwait(&cf->cheflock,&exit);
-
-       
-        if(ans == -1 &&  errno == ETIMEDOUT)
-        {
-              break;
-        }
-        else
-        {
-            //Now the chef has to prepare the assigned pizza
-            //pizza type and order is known to the chef before hand as he is informed by pizza thread
-            int c = 1;
-            for(int i = 1 ; i <= pizza[cf->pizzatype].num_limitedingredients ;i++)
-            {
-               pthread_mutex_lock(&ingredients[pizza[cf->pizzatype].ID[i]]);
-               if(amount_ingredients[pizza[cf->pizzatype].ID[i]]  == 0)
-               {
-                  c = -1;
-               }
-               else
-               {
-                amount_ingredients[pizza[cf->pizzatype].ID[i]]--;
-               }
-
-               pthread_mutex_unlock(&ingredients[pizza[cf->pizzatype].ID[i]]);
-
-            }
-
-            if(c == -1)
-            {
-                //make this chef free
-                //inform couldnt prepare the pizza to the pizza thread by any means
-
-                printf("chef %d could not complete pizza %d for order %d due to ingredient shortage\n",cf->id,cf->pizzanumber,cf->assignedto);
-                sem_post(&cf->signallock);   
-            }
-            else
-            {
-
-                sleep(3);
-                //sleeping for 3seconds as this time is used for gathering ingredients
-                int k = 1;
-                printf("Chef %d is waiting for oven allocation for pizza %d for order %d\n",cf->id,cf->pizzanumber,cf->assignedto);
-                k = sem_timedwait(&n_ovens,&exit);
-
-                if(k == -1 && errno == ETIMEDOUT)
-                {
-                    //order can't be prepared so notify according to this
-                    sem_post(&cf->signallock);
-                    break;
-
-                }
-                else
-                {
-                    //All set just sleep for amount of preparation time
-                    if(current_time+pizza[cf->pizzatype].preparationtime > cf->exittime)
-                    {
-                        //order can't be prepared in this case also
-                        sem_post(&cf->signallock);
-                        break;
-                    }
-                    else
-                    {
-                       printf("Chef %d has put the pizza %d for order %d in the oven at time %d\n",cf->id,cf->pizzanumber,cf->assignedto,current_time);
-                       sleep(pizza[cf->pizzatype].preparationtime);
-                       sem_post(&n_ovens);
-
-                       printf("Chef %d has picked up the pizza %d for order %d from the oven at time %d\n",cf->id,cf->pizzanumber,cf->assignedto,current_time);
-
-                       sleep(timetaken_pickupspot);
-
-                       printf("Customer %d picks up their pizza %d\n",cf->assignedto,cf->pizzanumber);
-
-                       pthred_mutex_lock(&customer[cf->assignedto].customerlock);
-                       customer[cf->assignedto].numpizzas_completed++;
-                       pthread_mutex_unlock(&customer[cf->assignedto].customerlock);
-
-                       sem_post(&cf->signallock);
-
-                       
-                       pthread_mutex_lock(&cf->chefmutex);
-                        cf->assignedto = -1;
-                       pthread_mutex_unlock(&cf->chefmutex);
-
-                       //pizza preparation completed so make this chef free now 
-                    }
+void red()
+{
+    printf("\033[0;31m");
+}
 
 
-                }
+void white()
+{
+    printf("\033[0;37m");
+}
 
-
-            }
-
-            
-
-        }
-    }
-    printf("Chef %d exits at time %d\n",cf->id,cf->exittime);
-   
+void reset()
+{
+    printf("\033[0m");
 }

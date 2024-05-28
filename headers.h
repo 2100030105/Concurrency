@@ -7,83 +7,49 @@
 #include <unistd.h>
 #include <string.h>
 
+#define MAX_STUDENTS 1000
 
-#define MAX_PIZZAS 50
-#define MAX_CUSTOMERS 100
-#define MAX_CHEFS 100
-#define MAX_LIMITEDINGREDIENTS 50
-#define MAX_INGREDIENTS 100
+int students_left = 0;
+int students;
+int washing_machines;
+int isrequired = 0;
 
 
-struct customer
-{
-     int id;
-     int arrivaltime;
-     int number_pizzas;
-     int pizzas[MAX_PIZZAS];
-     int numpizzas_completed;
-     sem_t customerlock;
-};
+sem_t wash_machines;
+int studentsremained;
 
-typedef struct customer Customer;
+time_t start_time;
 
-struct chef
-{
+int totalsec_wasted;
+pthread_mutex_t secondslock;
+
+
+int seconds_completed = 0;
+
+typedef struct student{
+    
     int id;
-    int arrivaltime;
-    int exittime;
-    int assignedto;
-    int pizzatype;
-    sem_t cheflock;
-    int pizzanumber;
-    pthread_mutex_t chefmutex;
-    sem_t signallock;
-};
+    int arrival_time;
+    int washing_time;
+    int patience_time;
+    struct timespec *currtime;
 
-struct pizza
-{
-    int id;
-    int preparationtime;
-    int num_limitedingredients;
-    int ID[MAX_LIMITEDINGREDIENTS];
+} student;
 
-};
+student  S[MAX_STUDENTS];
+pthread_t S_thread[MAX_STUDENTS];
+sem_t mu_studentsleft;
+ struct timespec * h1;
 
 
-struct order{
-    int id;
-    int pizzatype;
-    int number;
-};
-typedef struct order Order;
 
-
-typedef struct chef Chef;
-typedef struct pizza Pizza;
-
-Customer customer[MAX_CUSTOMERS];
-Chef     chef[MAX_CHEFS];
-Pizza    pizza[MAX_PIZZAS];
-int amount_ingredients[MAX_INGREDIENTS];
-
-void *function_chef(void *arg);
-void *function_customer(void *arg);
-
-int number_chefs;
-int num_pizzavarieties;
-int num_limitedingredients;
-int num_customers;
-int num_ovens;
-int timetaken_pickupspot;
-
-sem_t n_ovens;;
-
-pthread_t Custom[MAX_CUSTOMERS];
-pthread_t chef_thread[MAX_CHEFS];
-pthread_mutex_t ingredients[MAX_INGREDIENTS];
-
-int start_time;
-int current_time;
+struct timespec * SetTime(int time);
+void * Schedule_WashingMachine(void* arg);
+void yellow();
+void white();
+void reset();
+void red();
+void green();
 
 
 
